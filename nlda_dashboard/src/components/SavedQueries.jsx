@@ -107,7 +107,11 @@
 // };
 
 // export default SavedQueries;
+// Adding Remove button
+
 import React, { useEffect, useState } from 'react';
+import { IconButton } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const SavedQueries = () => {
   const [savedQueries, setSavedQueries] = useState([]);
@@ -118,9 +122,16 @@ const SavedQueries = () => {
     setSavedQueries(queries);
   }, []);
 
+  // Function to remove a query
+  const handleRemoveQuery = (index) => {
+    const updatedQueries = savedQueries.filter((_, i) => i !== index);
+    setSavedQueries(updatedQueries);
+    localStorage.setItem('savedQueries', JSON.stringify(updatedQueries));
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl">
+    <div className="flex items-center justify-center min-h-screen w-full bg-gray-50 p-4">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-6xl min-h-[80vh]">
         <h2 className="text-2xl font-semibold text-center text-blue-600 mb-6">Saved Queries</h2>
 
         {/* Display saved queries */}
@@ -128,12 +139,17 @@ const SavedQueries = () => {
           <p className="text-center text-gray-500">No saved queries yet.</p>
         ) : (
           savedQueries.map((query, index) => (
-            <div key={index} className="p-4 mb-4 border rounded bg-gray-100">
-              <h3 className="font-medium text-gray-700">Query {index + 1}</h3>
-              <p><strong>User Prompt:</strong> {query.userPrompt}</p>
-              <p><strong>SQL Query:</strong> {query.query}</p>
-              <p><strong>Dataset/Connection:</strong> {query.dataset}</p>
-              <p><strong>Date Saved:</strong> {query.date}</p>
+            <div key={index} className="flex justify-between items-center p-4 mb-4 border rounded bg-gray-100">
+              <div>
+                <h3 className="font-medium text-gray-700">Query {index + 1}</h3>
+                <p><strong>User Prompt:</strong> {query.userPrompt}</p>
+                <p><strong>SQL Query:</strong> {query.query}</p>
+                <p><strong>Dataset/Connection:</strong> {query.dataset}</p>
+                <p><strong>Date Saved:</strong> {query.date}</p>
+              </div>
+              <IconButton onClick={() => handleRemoveQuery(index)} color="error">
+                <DeleteIcon />
+              </IconButton>
             </div>
           ))
         )}
