@@ -64,10 +64,8 @@
 // export default App;
 
 
-
-
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import Chatbot from './components/Chatbot';
 import SavedQueries from './components/SavedQueries';
@@ -79,23 +77,20 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in (by checking localStorage)
     const user = localStorage.getItem('user');
     setIsAuthenticated(!!user); // Update authentication state based on localStorage
   }, []);
 
-  // Function to handle login success
   const handleLogin = (user) => {
-    localStorage.setItem('user', JSON.stringify(user));  // Save user to localStorage
-    setIsAuthenticated(true);  // Update the authentication state
+    localStorage.setItem('user', JSON.stringify(user));
+    setIsAuthenticated(true);
   };
 
   return (
     <DatasetProvider>
       <Router>
-        <AuthWrapper isAuthenticated={isAuthenticated}>
+        <AuthWrapper isAuthenticated={isAuthenticated} setIsAuthenticated={setIsAuthenticated}>
           <Routes>
-            {/* If user is authenticated, navigate to Chatbot page */}
             <Route path="/" element={isAuthenticated ? <Chatbot /> : <Navigate to="/login" />} />
             <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
             <Route path="/saved-queries" element={isAuthenticated ? <SavedQueries /> : <Navigate to="/login" />} />
@@ -108,20 +103,37 @@ const App = () => {
   );
 };
 
-// Component to conditionally render the Navbar based on authentication state
-const AuthWrapper = ({ isAuthenticated, children }) => {
+// Component to render Navbar and Logout button
+const AuthWrapper = ({ isAuthenticated, setIsAuthenticated, children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isLoginPage = location.pathname === "/login";
+
+  // Logout function
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setIsAuthenticated(false);
+    navigate('/login');
+  };
 
   return (
     <>
       {!isLoginPage && isAuthenticated && (
-        <nav className="p-4 bg-blue-600 text-white">
+        <nav className="p-4 bg-blue-600 text-white flex justify-between items-center">
+          {/* Navigation Links */}
           <ul className="flex space-x-6">
             <li><Link to="/" className="hover:underline">Chatbot</Link></li>
             <li><Link to="/saved-queries" className="hover:underline">Saved Queries</Link></li>
             <li><Link to="/connections" className="hover:underline">Connections</Link></li>
           </ul>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 px-4 py-2 rounded hover:bg-red-600 transition duration-200"
+          >
+            Logout
+          </button>
         </nav>
       )}
       {children}
@@ -130,6 +142,73 @@ const AuthWrapper = ({ isAuthenticated, children }) => {
 };
 
 export default App;
+
+
+
+// import React, { useState, useEffect } from 'react';
+// import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+// import LoginPage from './components/LoginPage';
+// import Chatbot from './components/Chatbot';
+// import SavedQueries from './components/SavedQueries';
+// import Visualization from './components/Visualization';
+// import DatasetUploadPage from './components/DatasetUploadPage';
+// import { DatasetProvider } from './components/DatasetContext';
+
+// const App = () => {
+//   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+//   useEffect(() => {
+//     // Check if user is already logged in (by checking localStorage)
+//     const user = localStorage.getItem('user');
+//     setIsAuthenticated(!!user); // Update authentication state based on localStorage
+//   }, []);
+
+//   // Function to handle login success
+//   const handleLogin = (user) => {
+//     localStorage.setItem('user', JSON.stringify(user));  // Save user to localStorage
+//     setIsAuthenticated(true);  // Update the authentication state
+//   };
+
+//   return (
+//     <DatasetProvider>
+//       <Router>
+//         <AuthWrapper isAuthenticated={isAuthenticated}>
+//           <Routes>
+//             {/* If user is authenticated, navigate to Chatbot page */}
+//             <Route path="/" element={isAuthenticated ? <Chatbot /> : <Navigate to="/login" />} />
+//             <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+//             <Route path="/saved-queries" element={isAuthenticated ? <SavedQueries /> : <Navigate to="/login" />} />
+//             <Route path="/visualization" element={isAuthenticated ? <Visualization /> : <Navigate to="/login" />} />
+//             <Route path="/connections" element={isAuthenticated ? <DatasetUploadPage /> : <Navigate to="/login" />} />
+//           </Routes>
+//         </AuthWrapper>
+//       </Router>
+//     </DatasetProvider>
+//   );
+// };
+
+// // Component to conditionally render the Navbar based on authentication state
+// const AuthWrapper = ({ isAuthenticated, children }) => {
+//   const location = useLocation();
+//   const isLoginPage = location.pathname === "/login";
+
+//   return (
+//     <>
+//       {!isLoginPage && isAuthenticated && (
+//         <nav className="p-4 bg-blue-600 text-white">
+//           <ul className="flex space-x-6">
+//             <li><Link to="/" className="hover:underline">Chatbot</Link></li>
+//             <li><Link to="/saved-queries" className="hover:underline">Saved Queries</Link></li>
+//             <li><Link to="/connections" className="hover:underline">Connections</Link></li>
+//           </ul>
+//         </nav>
+//       )}
+//       {children}
+//     </>
+//   );
+// };
+
+// export default App;
 
 
 

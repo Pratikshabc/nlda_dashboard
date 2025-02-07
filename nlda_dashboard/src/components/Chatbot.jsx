@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDataset } from './DatasetContext';  // Import the custom hook
+import { useDataset } from './DatasetContext';
 import { useNavigate } from 'react-router-dom';
 
 const Chatbot = () => {
@@ -7,10 +7,24 @@ const Chatbot = () => {
   const [generatedQuery, setGeneratedQuery] = useState('');
   const [showAnalysisButton, setShowAnalysisButton] = useState(false);
 
-  const { dataset, jdbcLink } = useDataset();  // Access the dataset and jdbcLink from context
+  const { dataset, jdbcLink } = useDataset();
   const navigate = useNavigate();
 
   // Generate SQL query
+  // const handleGenerateQuery = () => {
+  //   if (!dataset && !jdbcLink) {
+  //     alert('Please upload a dataset or provide a JDBC connection string.');
+  //     return;
+  //   }
+  //   if (!input) {
+  //     alert('Please enter a query.');
+  //     return;
+  //   }
+
+  //   let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+  //   setGeneratedQuery(sqlQuery);
+  //   setShowAnalysisButton(true);
+  // };
   const handleGenerateQuery = () => {
     if (!dataset && !jdbcLink) {
       alert('Please upload a dataset or provide a JDBC connection string.');
@@ -20,21 +34,32 @@ const Chatbot = () => {
       alert('Please enter a query.');
       return;
     }
-
+  
     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
     setGeneratedQuery(sqlQuery);
-
-    // Show the "Click for Analysis" button after generating the query
     setShowAnalysisButton(true);
+  
+    // Save the query to localStorage
+    const savedQueries = JSON.parse(localStorage.getItem('savedQueries')) || [];
+    const newQuery = {
+      userPrompt: input,
+      query: sqlQuery,
+      dataset: dataset || jdbcLink,
+      date: new Date().toLocaleString(),
+    };
+  
+    savedQueries.push(newQuery);
+    localStorage.setItem('savedQueries', JSON.stringify(savedQueries));
   };
+  
 
   // Handle redirection to the visualization page
   const handleClickForAnalysis = () => {
-    navigate('/Visualization');
+    navigate('/visualization');
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl">
         <h2 className="text-2xl font-semibold text-center text-blue-600 mb-6">Chatbot for Query Generation</h2>
 
@@ -86,6 +111,201 @@ const Chatbot = () => {
 };
 
 export default Chatbot;
+
+
+
+
+// import React, { useState } from 'react';
+// import { useDataset } from './DatasetContext';
+// import { useNavigate } from 'react-router-dom';
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState('');
+//   const [generatedQuery, setGeneratedQuery] = useState('');
+//   const [showAnalysisButton, setShowAnalysisButton] = useState(false);
+
+//   const { dataset, jdbcLink } = useDataset();
+//   const navigate = useNavigate();
+
+//   // Function to handle Logout
+//   const handleLogout = () => {
+//     localStorage.removeItem('user');  // Remove user data
+//     navigate('/login');  // Redirect to login page
+//   };
+
+//   // Generate SQL query
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert('Please upload a dataset or provide a JDBC connection string.');
+//       return;
+//     }
+//     if (!input) {
+//       alert('Please enter a query.');
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     setGeneratedQuery(sqlQuery);
+//     setShowAnalysisButton(true);
+//   };
+
+//   // Handle redirection to the visualization page
+//   const handleClickForAnalysis = () => {
+//     navigate('/visualization');
+//   };
+
+//   return (
+//     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+//       {/* Logout Button */}
+//       <div className="w-full max-w-xl flex justify-end mb-4">
+//         <button
+//           onClick={handleLogout}
+//           className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition duration-200"
+//         >
+//           Logout
+//         </button>
+//       </div>
+
+//       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl">
+//         <h2 className="text-2xl font-semibold text-center text-blue-600 mb-6">Chatbot for Query Generation</h2>
+
+//         {/* NLP Query Input Section */}
+//         <div className="mb-4">
+//           <label htmlFor="query-input" className="block text-gray-700 font-medium">Enter your Query</label>
+//           <input
+//             type="text"
+//             id="query-input"
+//             value={input}
+//             onChange={(e) => setInput(e.target.value)}
+//             className="p-2 border rounded w-full text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//             placeholder="Ask your query..."
+//           />
+//         </div>
+
+//         {/* Generate Query Button */}
+//         <div className="mb-4">
+//           <button
+//             onClick={handleGenerateQuery}
+//             className="bg-blue-500 text-white p-3 rounded w-full hover:bg-blue-600 transition duration-200 ease-in-out"
+//           >
+//             Generate Query
+//           </button>
+//         </div>
+
+//         {/* Display Generated SQL Query */}
+//         {generatedQuery && (
+//           <div className="mb-4 p-4 border rounded bg-gray-100">
+//             <label className="block text-gray-700 font-semibold">Generated SQL Query:</label>
+//             <p className="mt-2 text-gray-800 break-words">{generatedQuery}</p>
+//           </div>
+//         )}
+
+//         {/* "Click for Analysis" Button */}
+//         {showAnalysisButton && (
+//           <div className="mb-4">
+//             <button
+//               onClick={handleClickForAnalysis}
+//               className="bg-yellow-500 text-white p-3 rounded w-full hover:bg-yellow-600 transition duration-200 ease-in-out"
+//             >
+//               Click for Analysis
+//             </button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
+
+// import React, { useState } from 'react';
+// import { useDataset } from './DatasetContext';  // Import the custom hook
+// import { useNavigate } from 'react-router-dom';
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState('');
+//   const [generatedQuery, setGeneratedQuery] = useState('');
+//   const [showAnalysisButton, setShowAnalysisButton] = useState(false);
+
+//   const { dataset, jdbcLink } = useDataset();  // Access the dataset and jdbcLink from context
+//   const navigate = useNavigate();
+
+//   // Generate SQL query
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert('Please upload a dataset or provide a JDBC connection string.');
+//       return;
+//     }
+//     if (!input) {
+//       alert('Please enter a query.');
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     setGeneratedQuery(sqlQuery);
+
+//     // Show the "Click for Analysis" button after generating the query
+//     setShowAnalysisButton(true);
+//   };
+
+//   // Handle redirection to the visualization page
+//   const handleClickForAnalysis = () => {
+//     navigate('/Visualization');
+//   };
+
+//   return (
+//     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+//       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl">
+//         <h2 className="text-2xl font-semibold text-center text-blue-600 mb-6">Chatbot for Query Generation</h2>
+
+//         {/* NLP Query Input Section */}
+//         <div className="mb-4">
+//           <label htmlFor="query-input" className="block text-gray-700 font-medium">Enter your Query</label>
+//           <input
+//             type="text"
+//             id="query-input"
+//             value={input}
+//             onChange={(e) => setInput(e.target.value)}
+//             className="p-2 border rounded w-full text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//             placeholder="Ask your query..."
+//           />
+//         </div>
+
+//         {/* Generate Query Button */}
+//         <div className="mb-4">
+//           <button
+//             onClick={handleGenerateQuery}
+//             className="bg-blue-500 text-white p-3 rounded w-full hover:bg-blue-600 transition duration-200 ease-in-out"
+//           >
+//             Generate Query
+//           </button>
+//         </div>
+
+//         {/* Display Generated SQL Query */}
+//         {generatedQuery && (
+//           <div className="mb-4 p-4 border rounded bg-gray-100">
+//             <label className="block text-gray-700 font-semibold">Generated SQL Query:</label>
+//             <p className="mt-2 text-gray-800 break-words">{generatedQuery}</p>
+//           </div>
+//         )}
+
+//         {/* "Click for Analysis" Button */}
+//         {showAnalysisButton && (
+//           <div className="mb-4">
+//             <button
+//               onClick={handleClickForAnalysis}
+//               className="bg-yellow-500 text-white p-3 rounded w-full hover:bg-yellow-600 transition duration-200 ease-in-out"
+//             >
+//               Click for Analysis
+//             </button>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
 
 
 
