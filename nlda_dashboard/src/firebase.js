@@ -9,7 +9,7 @@ const firebaseConfig = {
     storageBucket: "hackathon-75da0.firebasestorage.app",
     messagingSenderId: "438278661226",
     appId: "1:438278661226:web:ddc790e9ec1bfc20f8d613",
-    measurementId: "G-890K22NPFV"
+    measurementId: "G-890K22NPFV" 
   };  
 
 // Initialize Firebase

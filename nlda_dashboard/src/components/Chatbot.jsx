@@ -1,126 +1,856 @@
-//Added functionality to the query history
-import React, { useState, useEffect } from "react";
-import { useDataset } from "./DatasetContext";
-import { useNavigate } from "react-router-dom";
-import { FaPaperPlane } from "react-icons/fa";
+//Chatbot.js
 
-const Chatbot = () => {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [queryHistory, setQueryHistory] = useState([]);
-  const { dataset, jdbcLink } = useDataset();
+import React, { useState, useEffect } from 'react';
+import { Send, Menu, Plus, BarChart3, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useDataset } from '../components/DatasetContext'; // Ensure DatasetContext is correctly set up
+
+const ChatInterface = () => {
   const navigate = useNavigate();
+  const { dataset, jdbcLink } = useDataset();
+  const [messages, setMessages] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const savedQueries = JSON.parse(localStorage.getItem("savedQueries")) || [];
-    setQueryHistory(savedQueries);
+    const savedChats = localStorage.getItem('chats');
+    if (savedChats) {
+      setChats(JSON.parse(savedChats));
+    }
   }, []);
 
-  const handleGenerateQuery = () => {
+  useEffect(() => {
+    localStorage.setItem('chats', JSON.stringify(chats));
+  }, [chats]);
+
+  useEffect(() => {
+    if (currentChatId) {
+      const currentChat = chats.find(chat => chat.id === currentChatId);
+      if (currentChat) {
+        setMessages(currentChat.messages || []);
+      }
+    }
+  }, [currentChatId, chats]);
+
+  const generateSQLQuery = async (question) => {
+    setLoading(true);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulating API call
+    setLoading(false);
+
+    // Ensure a dataset or JDBC link exists before query generation
     if (!dataset && !jdbcLink) {
-      alert("Please upload a dataset or provide a JDBC connection string.");
+      return {
+        sql: null,
+        explanation: 'Please upload a dataset or provide a JDBC connection string before generating queries.',
+      };
+    }
+
+    return {
+      sql: `SELECT * FROM ${dataset || jdbcLink} WHERE ${
+        question.toLowerCase().includes('users') 
+          ? 'active = true' 
+          : "created_at > NOW() - INTERVAL '7 days'"
+      };`,
+      explanation: "I've generated a SQL query based on your input.",
+    };
+  };
+
+  const createNewChat = () => {
+    const newChatId = Date.now().toString();
+    const newChat = {
+      id: newChatId,
+      title: `Chat ${chats.length + 1}`,
+      messages: [],
+      timestamp: new Date().toISOString()
+    };
+
+    setChats(prev => [newChat, ...prev]);
+    setCurrentChatId(newChatId);
+    setMessages([]);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    let chatId = currentChatId;
+
+    if (!chatId) {
+      chatId = Date.now().toString();
+      setCurrentChatId(chatId);
+      setChats(prev => [
+        { id: chatId, title: "New Chat", messages: [], timestamp: new Date().toISOString() },
+        ...prev
+      ]);
+    }
+
+    const userMessage = { type: 'user', content: input };
+    const updatedMessages = [...messages, userMessage];
+
+    setMessages(updatedMessages);
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, messages: updatedMessages } : chat
+    ));
+
+    const response = await generateSQLQuery(input);
+    const responseMessage = { 
+      type: 'assistant',
+      content: response.explanation,
+      sql: response.sql,
+      timestamp: new Date().toISOString()
+    };
+
+    const finalMessages = [...updatedMessages, responseMessage];
+    setMessages(finalMessages);
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, messages: finalMessages } : chat
+    ));
+
+    setInput('');
+
+    if (response.sql) {
+      const savedQueries = JSON.parse(localStorage.getItem('savedQueries')) || [];
+      savedQueries.push({
+        userPrompt: input,
+        query: response.sql,
+        dataset: dataset || jdbcLink,
+        date: new Date().toLocaleString(),
+      });
+      localStorage.setItem('savedQueries', JSON.stringify(savedQueries));
+    }
+
+    if (updatedMessages.length === 1) {
+      setChats(prev => prev.map(chat => 
+        chat.id === chatId 
+          ? { ...chat, title: input.slice(0, 30) + (input.length > 30 ? '...' : '') }
+          : chat
+      ));
+    }
+  };
+
+  const selectChat = (chatId) => {
+    setCurrentChatId(chatId);
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      setMessages(chat.messages || []);
+    }
+  };
+
+  const navigateToVisualization = () => {
+    if (!dataset && !jdbcLink) {
+      alert('Please upload a dataset or provide a JDBC connection string first.');
       return;
     }
 
-    if (!input) {
-      alert("Please enter a query.");
-      return;
-    }
-
-    let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
-    const newMessage = { user: true, text: input };
-    const responseMessage = { user: false, text: sqlQuery };
-
-    setMessages([...messages, newMessage, responseMessage]);
-    setQueryHistory([...queryHistory, { userPrompt: input, query: sqlQuery }]);
-
-    localStorage.setItem(
-      "savedQueries",
-      JSON.stringify([...queryHistory, { userPrompt: input, query: sqlQuery }])
-    );
-    setInput("");
-  };
-
-  const handleClickForAnalysis = (query) => {
-    localStorage.setItem("selectedQuery", query);
-    navigate("/visualization");
-  };
-
-  const handleHistoryClick = (query) => {
-    setMessages([...messages, { user: true, text: query.userPrompt }, { user: false, text: query.query }]);
+    localStorage.setItem('currentChatId', currentChatId);
+    navigate('/visualization');
   };
 
   return (
-    <div className="flex h-screen bg-white text-gray-900">
-      {/* Sidebar - 30% width */}
-      <div className="w-1/3 bg-gray-100 p-4 border-r overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">Query History</h2>
-        <div className="space-y-2">
-          {queryHistory.map((query, index) => (
-            <div
-              key={index}
-              className="p-2 bg-gray-200 rounded-lg cursor-pointer hover:bg-gray-300"
-              onClick={() => handleHistoryClick(query)}
-            >
-              <p className="text-sm font-medium">{query.userPrompt}</p>
-            </div>
-          ))}
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-gray-900 transition-all duration-300 overflow-hidden`}>
+        <div className="p-4">
+          <button 
+            onClick={createNewChat}
+            className="flex items-center gap-2 w-full p-3 rounded-md hover:bg-gray-700 text-white mb-4"
+          >
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+          
+          <div className="space-y-2">
+            <div className="text-gray-400 text-sm font-medium mb-2">Recent</div>
+            {chats.map((chat) => (
+              <div 
+                key={chat.id}
+                onClick={() => selectChat(chat.id)}
+                className={`flex items-center gap-2 p-2 rounded-md hover:bg-gray-700 text-gray-300 cursor-pointer ${
+                  currentChatId === chat.id ? 'bg-gray-700' : ''
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <div className="truncate">{chat.title}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Main Chat Area - 70% width */}
-      <div className="w-2/3 flex flex-col h-full">
-        {/* Chat Header */}
-        <div className="p-4 bg-gray-300 text-center text-lg font-semibold text-gray-700 border-b">
-          Chatbot for Query Generation
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex items-center justify-between bg-white shadow-md p-4">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-md hover:bg-gray-200">
+            <Menu className="w-5 h-5" />
+          </button>
+          <h1 className="text-lg font-semibold">Chat Interface</h1>
+          <button 
+            onClick={navigateToVisualization}
+            className="flex items-center gap-2 p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            <BarChart3 className="w-4 h-4" />
+            Analyze
+          </button>
         </div>
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
           {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={`p-3 rounded-lg max-w-fit ${
-                msg.user
-                  ? "bg-blue-500 text-white self-end"
-                  : "bg-gray-300 text-black self-start"
-              }`}
-            >
-              {msg.text}
-              {!msg.user && (
-                <button
-                  onClick={() => handleClickForAnalysis(msg.text)}
-                  className="ml-4 bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600"
-                >
-                  Analyze
-                </button>
-              )}
+            <div key={index} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div 
+                className={`p-3 max-w-xs sm:max-w-md rounded-lg text-sm shadow ${
+                  msg.type === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-300 text-gray-800'
+                }`}
+              >
+                {msg.content}
+                {msg.sql && (
+                  <pre className="mt-2 p-2 bg-gray-800 text-green-300 text-xs rounded">{msg.sql}</pre>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Input Section */}
-        <div className="p-4 border-t bg-white flex items-center">
-          <input
+        {/* Input Field */}
+        <form onSubmit={handleSubmit} className="p-4 border-t bg-white flex items-center gap-2">
+          <input 
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 p-2 rounded-lg border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Type your query..."
+            className="flex-1 p-2 border rounded-md focus:outline-none"
+            placeholder="Ask a question..."
           />
-          <button
-            onClick={handleGenerateQuery}
-            className="ml-3 bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+          <button 
+            type="submit"
+            disabled={loading}
+            className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600"
           >
-            <FaPaperPlane className="text-white" />
+            <Send className="w-4 h-4" />
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
 };
 
-export default Chatbot;
+export default ChatInterface;
+
+
+
+
+
+
+
+
+// import React, { useState, useEffect } from "react";
+// import { useDataset } from "./DatasetContext";
+// import { useNavigate } from "react-router-dom";
+// import { FaPaperPlane, FaBars } from "react-icons/fa"; // Sidebar icon
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState("");
+//   const [messages, setMessages] = useState([]);
+//   const [queryHistory, setQueryHistory] = useState([]);
+//   const [sidebarOpen, setSidebarOpen] = useState(false);
+//   const [typewriterText, setTypewriterText] = useState("");
+//   const typewriterMessage = "Start a conversation...";
+//   const { dataset, jdbcLink } = useDataset();
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const savedQueries = JSON.parse(localStorage.getItem("savedQueries")) || [];
+//     setQueryHistory(savedQueries);
+//   }, []);
+
+//   useEffect(() => {
+//     let index = 0;
+//     setTypewriterText("");
+//     const interval = setInterval(() => {
+//       setTypewriterText((prev) => prev + typewriterMessage[index]);
+//       index++;
+//       if (index === typewriterMessage.length) clearInterval(interval);
+//     }, 100);
+//     return () => clearInterval(interval);
+//   }, []);
+
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert("Please upload a dataset or provide a JDBC connection string.");
+//       return;
+//     }
+
+//     if (!input.trim()) {
+//       alert("Please enter a query.");
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     const newMessage = { user: true, text: input };
+//     const responseMessage = { user: false, text: sqlQuery };
+
+//     setMessages([...messages, newMessage, responseMessage]);
+//     setQueryHistory([...queryHistory, { userPrompt: input, query: sqlQuery }]);
+
+//     localStorage.setItem(
+//       "savedQueries",
+//       JSON.stringify([...queryHistory, { userPrompt: input, query: sqlQuery }])
+//     );
+//     setInput("");
+//   };
+
+//   const handleClickForAnalysis = (query) => {
+//     localStorage.setItem("selectedQuery", query);
+//     navigate("/visualization");
+//   };
+
+//   const handleHistoryClick = (query) => {
+//     setMessages([...messages, { user: true, text: query.userPrompt }, { user: false, text: query.query }]);
+//   };
+
+//   const toggleSidebar = () => {
+//     setSidebarOpen(!sidebarOpen);
+//   };
+
+//   return (
+//     <div className="flex h-screen bg-gray-100 text-gray-900">
+//       {sidebarOpen && (
+//         <div className="w-1/3 bg-gray-200 p-4 border-r overflow-y-auto">
+//           <h2 className="text-lg font-semibold mb-4">Query History</h2>
+//           <div className="space-y-2">
+//             {queryHistory.map((query, index) => (
+//               <div
+//                 key={index}
+//                 className="p-2 bg-gray-300 rounded-lg cursor-pointer hover:bg-gray-400"
+//                 onClick={() => handleHistoryClick(query)}
+//               >
+//                 <p className="text-sm font-medium">{query.userPrompt}</p>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+//       <div className="flex-1 flex flex-col h-full">
+//         <div className="p-4 bg-gray-300 text-center text-lg font-semibold text-gray-700 border-b">
+//           <h1>Chatbot for Query Generation</h1>
+//         </div>
+
+//         <button
+//           onClick={toggleSidebar}
+//           className="absolute top-4 left-4 bg-gray-200 p-2 rounded-full hover:bg-gray-300"
+//         >
+//           <FaBars size={24} className="text-gray-600" />
+//         </button>
+
+//         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+//           {messages.length === 0 ? (
+//             <div className="flex flex-col items-center justify-center h-full">
+//               <p className="text-gray-600 text-lg mb-4">{typewriterText}</p>
+//               <div className="flex w-full max-w-2xl space-x-3 p-2 border border-gray-300 rounded-lg bg-gray-50">
+//                 <input
+//                   type="text"
+//                   value={input}
+//                   onChange={(e) => setInput(e.target.value)}
+//                   className="flex-1 p-2 rounded-lg border-0 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                   placeholder="Type your query..."
+//                 />
+//                 <button
+//                   onClick={handleGenerateQuery}
+//                   className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//                 >
+//                   <FaPaperPlane className="text-white" />
+//                 </button>
+//               </div>
+//             </div>
+//           ) : (
+//             messages.map((msg, index) => (
+//               <div key={index} className={`flex w-full ${msg.user ? "justify-end" : "justify-start"}`}>
+//                 <div
+//                   className={`p-3 rounded-lg max-w-[75%] ${
+//                     msg.user
+//                       ? "bg-blue-500 text-white self-end"
+//                       : "bg-gray-300 text-black self-start"
+//                   }`}
+//                 >
+//                   {msg.text}
+//                   {!msg.user && (
+//                     <button
+//                       onClick={() => handleClickForAnalysis(msg.text)}
+//                       className="ml-4 bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600"
+//                     >
+//                       Analyze
+//                     </button>
+//                   )}
+//                 </div>
+//               </div>
+//             ))
+//           )}
+//         </div>
+
+//         {messages.length > 0 && (
+//           <div className="p-4 border-t bg-white flex justify-center items-center">
+//             <div className="flex w-full max-w-2xl space-x-3 p-2 border border-gray-300 rounded-lg bg-gray-50">
+//               <input
+//                 type="text"
+//                 value={input}
+//                 onChange={(e) => setInput(e.target.value)}
+//                 className="flex-1 p-2 rounded-lg border-0 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 placeholder="Type your query..."
+//               />
+//               <button
+//                 onClick={handleGenerateQuery}
+//                 className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//               >
+//                 <FaPaperPlane className="text-white" />
+//               </button>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
+
+// import React, { useState, useEffect } from "react";
+// import { useDataset } from "./DatasetContext";
+// import { useNavigate } from "react-router-dom";
+// import { FaPaperPlane, FaBars } from "react-icons/fa"; // Sidebar icon
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState("");
+//   const [messages, setMessages] = useState([]);
+//   const [queryHistory, setQueryHistory] = useState([]);
+//   const [sidebarOpen, setSidebarOpen] = useState(false);
+//   const { dataset, jdbcLink } = useDataset();
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const savedQueries = JSON.parse(localStorage.getItem("savedQueries")) || [];
+//     setQueryHistory(savedQueries);
+//   }, []);
+
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert("Please upload a dataset or provide a JDBC connection string.");
+//       return;
+//     }
+
+//     if (!input.trim()) {
+//       alert("Please enter a query.");
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     const newMessage = { user: true, text: input };
+//     const responseMessage = { user: false, text: sqlQuery };
+
+//     setMessages([...messages, newMessage, responseMessage]);
+//     setQueryHistory([...queryHistory, { userPrompt: input, query: sqlQuery }]);
+
+//     localStorage.setItem(
+//       "savedQueries",
+//       JSON.stringify([...queryHistory, { userPrompt: input, query: sqlQuery }])
+//     );
+//     setInput("");
+//   };
+
+//   const handleClickForAnalysis = (query) => {
+//     localStorage.setItem("selectedQuery", query);
+//     navigate("/visualization");
+//   };
+
+//   const handleHistoryClick = (query) => {
+//     setMessages([...messages, { user: true, text: query.userPrompt }, { user: false, text: query.query }]);
+//   };
+
+//   const toggleSidebar = () => {
+//     setSidebarOpen(!sidebarOpen);
+//   };
+
+//   return (
+//     <div className="flex h-screen bg-gray-100 text-gray-900">
+//       {/* Sidebar - Conditional Rendering */}
+//       {sidebarOpen && (
+//         <div className="w-1/3 bg-gray-200 p-4 border-r overflow-y-auto">
+//           <h2 className="text-lg font-semibold mb-4">Query History</h2>
+//           <div className="space-y-2">
+//             {queryHistory.map((query, index) => (
+//               <div
+//                 key={index}
+//                 className="p-2 bg-gray-300 rounded-lg cursor-pointer hover:bg-gray-400"
+//                 onClick={() => handleHistoryClick(query)}
+//               >
+//                 <p className="text-sm font-medium">{query.userPrompt}</p>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Main Chat Area */}
+//       <div className="flex-1 flex flex-col h-full">
+//         {/* Chat Header */}
+//         <div className="p-4 bg-gray-300 text-center text-lg font-semibold text-gray-700 border-b">
+//           <h1>Chatbot for Query Generation</h1>
+//         </div>
+
+//         {/* Sidebar Toggle Button */}
+//         <button
+//           onClick={toggleSidebar}
+//           className="absolute top-4 left-4 bg-gray-200 p-2 rounded-full hover:bg-gray-300"
+//         >
+//           <FaBars size={24} className="text-gray-600" />
+//         </button>
+
+//         {/* Chat Messages */}
+//         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+//           {messages.length === 0 ? (
+//             // When no messages, center the input field
+//             <div className="flex flex-col items-center justify-center h-full">
+//               <p className="text-gray-600 text-lg mb-4">Start a conversation...</p>
+//               <div className="flex w-full max-w-2xl space-x-3 p-2 border border-gray-300 rounded-lg bg-gray-50">
+//                 <input
+//                   type="text"
+//                   value={input}
+//                   onChange={(e) => setInput(e.target.value)}
+//                   className="flex-1 p-2 rounded-lg border-0 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                   placeholder="Type your query..."
+//                 />
+//                 <button
+//                   onClick={handleGenerateQuery}
+//                   className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//                 >
+//                   <FaPaperPlane className="text-white" />
+//                 </button>
+//               </div>
+//             </div>
+//           ) : (
+//             // When there are messages, show chat messages normally
+//             messages.map((msg, index) => (
+//               <div key={index} className={`flex w-full ${msg.user ? "justify-end" : "justify-start"}`}>
+//                 <div
+//                   className={`p-3 rounded-lg max-w-[75%] ${
+//                     msg.user
+//                       ? "bg-blue-500 text-white self-end" // User message on right
+//                       : "bg-gray-300 text-black self-start" // Chatbot message on left
+//                   }`}
+//                 >
+//                   {msg.text}
+//                   {!msg.user && (
+//                     <button
+//                       onClick={() => handleClickForAnalysis(msg.text)}
+//                       className="ml-4 bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600"
+//                     >
+//                       Analyze
+//                     </button>
+//                   )}
+//                 </div>
+//               </div>
+//             ))
+//           )}
+//         </div>
+
+//         {/* Input Section (Only appears if messages exist) */}
+//         {messages.length > 0 && (
+//           <div className="p-4 border-t bg-white flex justify-center items-center">
+//             <div className="flex w-full max-w-2xl space-x-3 p-2 border border-gray-300 rounded-lg bg-gray-50">
+//               <input
+//                 type="text"
+//                 value={input}
+//                 onChange={(e) => setInput(e.target.value)}
+//                 className="flex-1 p-2 rounded-lg border-0 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//                 placeholder="Type your query..."
+//               />
+//               <button
+//                 onClick={handleGenerateQuery}
+//                 className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//               >
+//                 <FaPaperPlane className="text-white" />
+//               </button>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
+
+// import React, { useState, useEffect } from "react";
+// import { useDataset } from "./DatasetContext";
+// import { useNavigate } from "react-router-dom";
+// import { FaPaperPlane, FaBars } from "react-icons/fa"; // Sidebar icon
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState("");
+//   const [messages, setMessages] = useState([]);
+//   const [queryHistory, setQueryHistory] = useState([]);
+//   const [sidebarOpen, setSidebarOpen] = useState(false);
+//   const { dataset, jdbcLink } = useDataset();
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const savedQueries = JSON.parse(localStorage.getItem("savedQueries")) || [];
+//     setQueryHistory(savedQueries);
+//   }, []);
+
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert("Please upload a dataset or provide a JDBC connection string.");
+//       return;
+//     }
+
+//     if (!input.trim()) {
+//       alert("Please enter a query.");
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     const newMessage = { user: true, text: input };
+//     const responseMessage = { user: false, text: sqlQuery };
+
+//     setMessages([...messages, newMessage, responseMessage]);
+//     setQueryHistory([...queryHistory, { userPrompt: input, query: sqlQuery }]);
+
+//     localStorage.setItem(
+//       "savedQueries",
+//       JSON.stringify([...queryHistory, { userPrompt: input, query: sqlQuery }])
+//     );
+//     setInput("");
+//   };
+
+//   const handleClickForAnalysis = (query) => {
+//     localStorage.setItem("selectedQuery", query);
+//     navigate("/visualization");
+//   };
+
+//   const handleHistoryClick = (query) => {
+//     setMessages([...messages, { user: true, text: query.userPrompt }, { user: false, text: query.query }]);
+//   };
+
+//   const toggleSidebar = () => {
+//     setSidebarOpen(!sidebarOpen);
+//   };
+
+//   return (
+//     <div className="flex h-screen bg-gray-100 text-gray-900">
+//       {/* Sidebar - Conditional Rendering */}
+//       {sidebarOpen && (
+//         <div className="w-1/3 bg-gray-200 p-4 border-r overflow-y-auto">
+//           <h2 className="text-lg font-semibold mb-4">Query History</h2>
+//           <div className="space-y-2">
+//             {queryHistory.map((query, index) => (
+//               <div
+//                 key={index}
+//                 className="p-2 bg-gray-300 rounded-lg cursor-pointer hover:bg-gray-400"
+//                 onClick={() => handleHistoryClick(query)}
+//               >
+//                 <p className="text-sm font-medium">{query.userPrompt}</p>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Main Chat Area */}
+//       <div className="flex-1 flex flex-col h-full">
+//         {/* Chat Header */}
+//         <div className="p-4 bg-gray-300 text-center text-lg font-semibold text-gray-700 border-b">
+//           <h1>Chatbot for Query Generation</h1>
+//         </div>
+
+//         {/* Sidebar Toggle Button */}
+//         <button
+//           onClick={toggleSidebar}
+//           className="absolute top-4 left-4 bg-gray-200 p-2 rounded-full hover:bg-gray-300"
+//         >
+//           <FaBars size={24} className="text-gray-600" />
+//         </button>
+
+//         {/* Chat Messages */}
+//         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+//           {messages.map((msg, index) => (
+//             <div key={index} className={`flex w-full ${msg.user ? "justify-end" : "justify-start"}`}>
+//               <div
+//                 className={`p-3 rounded-lg max-w-[75%] ${
+//                   msg.user
+//                     ? "bg-blue-500 text-white self-end" // User message on right
+//                     : "bg-gray-300 text-black self-start" // Chatbot message on left
+//                 }`}
+//               >
+//                 {msg.text}
+//                 {!msg.user && (
+//                   <button
+//                     onClick={() => handleClickForAnalysis(msg.text)}
+//                     className="ml-4 bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600"
+//                   >
+//                     Analyze
+//                   </button>
+//                 )}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {/* Input Section */}
+//         <div className="p-4 border-t bg-white flex justify-center items-center">
+//           <div className="flex w-full max-w-2xl space-x-3 p-2 border border-gray-300 rounded-lg bg-gray-50">
+//             <input
+//               type="text"
+//               value={input}
+//               onChange={(e) => setInput(e.target.value)}
+//               className="flex-1 p-2 rounded-lg border-0 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//               placeholder="Type your query..."
+//             />
+//             <button
+//               onClick={handleGenerateQuery}
+//               className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//             >
+//               <FaPaperPlane className="text-white" />
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
+
+
+
+
+// //Added functionality to the query history
+// import React, { useState, useEffect } from "react";
+// import { useDataset } from "./DatasetContext";
+// import { useNavigate } from "react-router-dom";
+// import { FaPaperPlane } from "react-icons/fa";
+
+// const Chatbot = () => {
+//   const [input, setInput] = useState("");
+//   const [messages, setMessages] = useState([]);
+//   const [queryHistory, setQueryHistory] = useState([]);
+//   const { dataset, jdbcLink } = useDataset();
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const savedQueries = JSON.parse(localStorage.getItem("savedQueries")) || [];
+//     setQueryHistory(savedQueries);
+//   }, []);
+
+//   const handleGenerateQuery = () => {
+//     if (!dataset && !jdbcLink) {
+//       alert("Please upload a dataset or provide a JDBC connection string.");
+//       return;
+//     }
+
+//     if (!input) {
+//       alert("Please enter a query.");
+//       return;
+//     }
+
+//     let sqlQuery = `SELECT * FROM ${dataset || jdbcLink}`;
+//     const newMessage = { user: true, text: input };
+//     const responseMessage = { user: false, text: sqlQuery };
+
+//     setMessages([...messages, newMessage, responseMessage]);
+//     setQueryHistory([...queryHistory, { userPrompt: input, query: sqlQuery }]);
+
+//     localStorage.setItem(
+//       "savedQueries",
+//       JSON.stringify([...queryHistory, { userPrompt: input, query: sqlQuery }])
+//     );
+//     setInput("");
+//   };
+
+//   const handleClickForAnalysis = (query) => {
+//     localStorage.setItem("selectedQuery", query);
+//     navigate("/visualization");
+//   };
+
+//   const handleHistoryClick = (query) => {
+//     setMessages([...messages, { user: true, text: query.userPrompt }, { user: false, text: query.query }]);
+//   };
+
+//   return (
+//     <div className="flex h-screen bg-white text-gray-900">
+//       {/* Sidebar - 30% width */}
+//       <div className="w-1/3 bg-gray-100 p-4 border-r overflow-y-auto">
+//         <h2 className="text-lg font-semibold mb-4">Query History</h2>
+//         <div className="space-y-2">
+//           {queryHistory.map((query, index) => (
+//             <div
+//               key={index}
+//               className="p-2 bg-gray-200 rounded-lg cursor-pointer hover:bg-gray-300"
+//               onClick={() => handleHistoryClick(query)}
+//             >
+//               <p className="text-sm font-medium">{query.userPrompt}</p>
+//             </div>
+//           ))}
+//         </div>
+//       </div>
+
+//       {/* Main Chat Area - 70% width */}
+//       <div className="w-2/3 flex flex-col h-full">
+//         {/* Chat Header */}
+//         <div className="p-4 bg-gray-300 text-center text-lg font-semibold text-gray-700 border-b">
+//           Chatbot for Query Generation
+//         </div>
+
+//         {/* Chat Messages */}
+//         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+//           {messages.map((msg, index) => (
+//             <div
+//               key={index}
+//               className={`p-3 rounded-lg max-w-fit ${
+//                 msg.user
+//                   ? "bg-blue-500 text-white self-end"
+//                   : "bg-gray-300 text-black self-start"
+//               }`}
+//             >
+//               {msg.text}
+//               {!msg.user && (
+//                 <button
+//                   onClick={() => handleClickForAnalysis(msg.text)}
+//                   className="ml-4 bg-yellow-500 text-white p-1 rounded hover:bg-yellow-600"
+//                 >
+//                   Analyze
+//                 </button>
+//               )}
+//             </div>
+//           ))}
+//         </div>
+
+//         {/* Input Section */}
+//         <div className="p-4 border-t bg-white flex items-center">
+//           <input
+//             type="text"
+//             value={input}
+//             onChange={(e) => setInput(e.target.value)}
+//             className="flex-1 p-2 rounded-lg border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+//             placeholder="Type your query..."
+//           />
+//           <button
+//             onClick={handleGenerateQuery}
+//             className="ml-3 bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition"
+//           >
+//             <FaPaperPlane className="text-white" />
+//           </button>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Chatbot;
 
 
 

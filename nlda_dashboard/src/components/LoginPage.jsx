@@ -129,6 +129,7 @@
 // };
 
 // export default LoginPage;
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, provider, signInWithPopup } from '../firebase'; // Import Firebase auth
